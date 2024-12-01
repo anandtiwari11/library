@@ -16,8 +16,6 @@ func main() {
 		c.Set("library", helpers.DB)
 		c.Next()
 	})
-	routes.BookRoutes(router)
-	routes.AuthorRoutes(router)
-	routes.UserRoutes(router)
+	routes.RegisterRoutes(router)
 	log.Fatal(router.Run(":8080"))
 }
