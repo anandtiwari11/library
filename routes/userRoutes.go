@@ -9,4 +9,5 @@ func UserRoutes(router *gin.Engine) {
 	router.GET("/user/:id", controllers.GetUser)
 	router.POST("/create-user", controllers.CreateUser)
 	router.POST("/borrow/:userID/:bookID", controllers.Borrow)
+	router.PUT("/return/:userID/:bookID", controllers.ReturnBook)
 }

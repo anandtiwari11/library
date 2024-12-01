@@ -113,3 +113,57 @@ func Borrow(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Book borrowed successfully", "user": user})
 }
+
+func ReturnBook(c *gin.Context) {
+    db := c.MustGet("library").(*gorm.DB)
+    var user models.User
+    var book models.Book
+
+    userID, err := strconv.Atoi(c.Param("userID"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID"})
+        return
+    }
+
+    bookID, err := strconv.Atoi(c.Param("bookID"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Book ID"})
+        return
+    }
+    if err := db.Preload("BorrowedBooks").First(&user, userID).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+        return
+    }
+
+    if err := db.First(&book, bookID).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Book not found"})
+        return
+    }
+    bookFound := false
+    for i, borrowedBook := range user.BorrowedBooks {
+        if borrowedBook.ID == book.ID {
+            user.BorrowedBooks = append(user.BorrowedBooks[:i], user.BorrowedBooks[i+1:]...)
+            bookFound = true
+            break
+        }
+    }
+
+    if !bookFound {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Book not found in user's borrowed books"})
+        return
+    }
+
+    book.Available = true
+
+    if err := db.Save(&user).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+        return
+    }
+
+    if err := db.Save(&book).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update book"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Book returned successfully", "user": user, "book": book})
+}
