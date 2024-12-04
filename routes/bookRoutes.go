@@ -9,4 +9,6 @@ func BookRoutes(router *gin.Engine) {
 	router.GET("/get-books", controllers.GetBooks)
 	router.GET("/get-books/:id", controllers.GetBook)
 	router.POST("/new-books", controllers.PostBook)
+	router.POST("/borrow/:userID/:bookID", controllers.Borrow)
+	router.PUT("/return/:userID/:bookID", controllers.ReturnBook)
 }

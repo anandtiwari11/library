@@ -3,17 +3,17 @@ package main
 import (
 	"log"
 
-	"github.com/anandtiwari11/library-management/helpers"
+	"github.com/anandtiwari11/library-management/initializers"
 	"github.com/anandtiwari11/library-management/routes"
 	"github.com/gin-gonic/gin"
 )
 
 
 func main() {
-	helpers.ConnectDB()
+	initalizers.ConnectDB()
 	router := gin.Default()
 	router.Use(func(c *gin.Context) {
-		c.Set("library", helpers.DB)
+		c.Set("library", initalizers.DB)
 		c.Next()
 	})
 	routes.RegisterRoutes(router)

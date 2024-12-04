@@ -2,168 +2,85 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
-	"time"
 
+	"github.com/anandtiwari11/library-management/helpers"
 	"github.com/anandtiwari11/library-management/models"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-func GetUser(c *gin.Context) {
+func Signup(c *gin.Context) {
 	db := c.MustGet("library").(*gorm.DB)
-	var user models.User
-
-	userID, err := strconv.Atoi(c.Param("id"))
+	var input, user models.User
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
+	if err := db.Where("email = ?", input.Email).First(&user).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"Error": "User Already Exist"})
+		return
+	}
+	hashedString, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User Not Found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
-
-	if err := db.Preload("BorrowedBooks").First(&user, userID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch the User"})
-		}
-		return
-	}
-	c.JSON(http.StatusOK, user)
-}
-
-func CreateUser(c *gin.Context) {
-	db := c.MustGet("library").(*gorm.DB)
-	var request struct {
-		Name            string        `json:"name"`
-		Email           string        `json:"email" gorm:"unique"`
-		SubscriptionEnd time.Time     `json:"subscription_end"`
-		BorrowedBooks   []models.Book `json:"borrowed_books" gorm:"many2many:user_books;"`
-	}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Request Data"})
-		return
-	}
-	user := models.User{
-		Name:            request.Name,
-		Email:           request.Email,
-		SubscriptionEnd: request.SubscriptionEnd,
-		BorrowedBooks:   request.BorrowedBooks,
+	user = models.User{
+		Name :			 input.Name,
+		Email:           input.Email,
+		Password:        string(hashedString),
+		SubscriptionEnd: user.SubscriptionEnd,
+		BorrowedBooks:   user.BorrowedBooks,
 	}
 	if err := db.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
-	c.JSON(http.StatusCreated, user)
+	c.JSON(http.StatusCreated, "User Created Succesfully")
 }
 
-func Borrow(c *gin.Context) {
+func Login(c *gin.Context) {
 	db := c.MustGet("library").(*gorm.DB)
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
 	var user models.User
-	var book models.Book
-
-	userID, err := strconv.Atoi(c.Param("userID"))
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
+	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		c.JSON(http.StatusConflict, gin.H{"Error": "User Not Exist"})
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
+		c.JSON(http.StatusInternalServerError, "Failed ot compare passwords")
+		return
+	}
+	tokenString, err := helpers.GenerateJWT(user.Email)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error" : "Failed to Generate Token"})
 		return
 	}
-
-	bookID, err := strconv.Atoi(c.Param("bookID"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Book ID"})
-		return
-	}
-	
-	if err := db.First(&book, bookID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Book not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch the book"})
-		}
-		return
-	}
-
-	if err := db.Preload("BorrowedBooks").First(&user, userID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch the user"})
-		}
-		return
-	}
-
-	if !book.Available {
-		c.JSON(http.StatusConflict, gin.H{"error": "Book not available"})
-		return
-	}
-
-
-	book.Available = false
-	user.BorrowedBooks = append(user.BorrowedBooks, book)
-
-
-	if err := db.Save(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to borrow book"})
-		return
-	}
-
-	if err := db.Save(&book).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update book availability"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Book borrowed successfully", "user": user})
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("Authorization", tokenString, 3600 * 72, "", "", false, true)
+	c.JSON(http.StatusOK, gin.H{
+		"message" : "Login Successfull",
+	})
 }
 
-func ReturnBook(c *gin.Context) {
-    db := c.MustGet("library").(*gorm.DB)
-    var user models.User
-    var book models.Book
-
-    userID, err := strconv.Atoi(c.Param("userID"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID"})
+func GetUser(c *gin.Context) {
+    user, exists := c.Get("user")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
         return
     }
+    c.JSON(http.StatusOK, gin.H{"user": user})
+}
 
-    bookID, err := strconv.Atoi(c.Param("bookID"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Book ID"})
-        return
-    }
-    if err := db.Preload("BorrowedBooks").First(&user, userID).Error; err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-        return
-    }
-
-    if err := db.First(&book, bookID).Error; err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Book not found"})
-        return
-    }
-    bookFound := false
-    for i, borrowedBook := range user.BorrowedBooks {
-        if borrowedBook.ID == book.ID {
-            user.BorrowedBooks = append(user.BorrowedBooks[:i], user.BorrowedBooks[i+1:]...)
-            bookFound = true
-            break
-        }
-    }
-
-    if !bookFound {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Book not found in user's borrowed books"})
-        return
-    }
-
-    book.Available = true
-
-    if err := db.Save(&user).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
-        return
-    }
-
-    if err := db.Save(&book).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update book"})
-        return
-    }
-
-    c.JSON(http.StatusOK, gin.H{"message": "Book returned successfully", "user": user, "book": book})
+func Logout(c *gin.Context) {
+    c.SetCookie("Authorization", "", -1, "", "", false, true)
+    c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
 }

@@ -21,10 +21,10 @@ func GetAllAuthors(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid database instance"})
 		return
 	}
-	if err := database.Find(&authors).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch authors"})
+	if err := database.Preload("Books").Find(&authors).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch authors with books"})
 		return
-	}
+	}	
 	c.JSON(http.StatusOK, authors)
 }
 
