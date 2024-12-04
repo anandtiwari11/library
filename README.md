@@ -13,26 +13,6 @@ A library management system built using **Go** and **GORM** ORM, designed to man
 - **Author Management**: Add new authors and view books written by a specific author.
 - **Borrowing System**: Allows users to borrow books, ensuring books are available before borrowing.
 
-## API Endpoints
-
-### User Endpoints
-
-- **GET /user/:id** - Get user details by ID
-- **POST /create-user** - Create a new user
-
-### Book Endpoints
-
-- **GET /get-books** - Get all books
-- **GET /get-books/:id** - Get book details by ID
-- **POST /new-books** - Add a new book
-- **POST /borrow/:userID/:bookID** - Borrow a book by user and book ID
-
-### Author Endpoints
-
-- **GET /authors** - Get all authors
-- **GET /author/:id/book** - Get all books written by a specific author
-- **POST /authors/new** - Add a new author
-
 ## Database Structure
 
 - **Users**: Information about users including name, email, subscription end date, and borrowed books.
