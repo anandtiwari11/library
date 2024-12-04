@@ -98,10 +98,10 @@ func Borrow(c *gin.Context) {
 	var user models.User
 	var book models.Book
 
-	userID, err := strconv.Atoi(c.Param("userID"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID"})
-		return
+	userID, exist := c.Get("userID")
+
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{"error" : "unathorized Access"})
 	}
 
 	bookID, err := strconv.Atoi(c.Param("bookID"))
@@ -154,9 +154,9 @@ func ReturnBook(c *gin.Context) {
 	var user models.User
 	var book models.Book
 
-	userID, err := strconv.Atoi(c.Param("userID"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID"})
+	userID, exist := c.Get("userID")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unathorized User"})
 		return
 	}
 
